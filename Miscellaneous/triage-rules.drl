@@ -1,0 +1,184 @@
+package rules
+ 
+import edu.reasoning.optimizer.model.Ticket
+import edu.reasoning.optimizer.model.SentimentSettings
+import edu.reasoning.optimizer.model.InvalidSentimentSettings
+import edu.reasoning.optimizer.model.P1WordSettings
+import edu.reasoning.optimizer.model.P2WordSettings
+import edu.reasoning.optimizer.model.P3WordSettings
+import edu.reasoning.optimizer.model.MatchedP1WordSettings
+import edu.reasoning.optimizer.model.MatchedP2WordSettings
+import edu.reasoning.optimizer.model.MatchedP3WordSettings
+import edu.reasoning.optimizer.model.PriorityLowEvent
+import edu.reasoning.optimizer.model.PriorityMediumEvent
+import edu.reasoning.optimizer.model.PriorityHighEvent
+import edu.reasoning.optimizer.model.SentimentGood
+import edu.reasoning.optimizer.model.SentimentBad
+import edu.reasoning.optimizer.model.SentimentNeutral
+import edu.reasoning.optimizer.model.AIGood
+import edu.reasoning.optimizer.model.AIBad
+import edu.reasoning.optimizer.model.AINeutral
+import edu.reasoning.optimizer.model.AIEvent
+
+rule "Invalid Settings"
+	dialect "mvel"
+	salience 50
+	when 
+		$setting: (
+		SentimentSettings( sentimentMarker2-sentimentMarker1 < 2) 
+		)
+	then		
+		insertLogical( new InvalidSentimentSettings($setting))
+
+	end	
+rule "High Priority"
+	dialect "mvel"
+	salience 10
+	when 
+		$tickets : Ticket()
+		exists(SentimentBad()) or exists(MatchedP3WordSettings()) or exists(AIBad())
+
+
+	then
+		$tickets.setSeverity(2)		
+		insertLogical( new PriorityHighEvent($tickets))	
+
+				
+	end
+rule "Low Priority"
+	dialect "mvel"
+	salience 8
+	when 
+		$tickets : Ticket()
+		exists(SentimentGood()) or exists(MatchedP1WordSettings()) or exists(AIGood())
+		exists(not PriorityHighEvent())
+		exists(not PriorityMediumEvent())
+	then
+		$tickets.setSeverity(0)			
+		insertLogical( new PriorityLowEvent($tickets))	
+	
+
+		
+	end
+rule "Medium Priority"
+	dialect "mvel"
+	salience 9
+	when 
+		$tickets : Ticket()
+		exists(SentimentNeutral()) or exists(MatchedP2WordSettings()) or exists(AINeutral() )
+		exists(not PriorityHighEvent())
+
+	then		
+		$tickets.setSeverity(1)	
+		insertLogical(new PriorityMediumEvent($tickets))	
+	
+	end	
+rule "SentimentBad"
+	dialect "mvel"
+	salience 20
+	when 
+		$settings: SentimentSettings() 
+		$tickets: Ticket(sentiments <= $settings.sentimentMarker1)
+		exists(not InvalidSentimentSettings())
+	then		
+		insertLogical( new SentimentBad($tickets))	
+
+				
+	end
+rule "SentimentGood"
+	dialect "mvel"
+	salience 18
+	when 
+		$settings: SentimentSettings() 
+		$tickets: Ticket(sentiments >= $settings.sentimentMarker2)
+		exists(not InvalidSentimentSettings())		
+
+	then		
+		insertLogical( new SentimentGood($tickets))	
+
+		
+	end
+rule "SentimentNeutral"
+	dialect "mvel"
+	salience 19
+	when 
+		$settings: SentimentSettings() 
+		$tickets: Ticket(sentiments > $settings.sentimentMarker1)  && Ticket(sentiments < $settings.sentimentMarker2)
+		exists(not InvalidSentimentSettings())
+	then		
+		insertLogical(new SentimentNeutral($tickets))	
+	
+	end	
+rule "AIBad"
+	dialect "mvel"
+	salience 20
+	when 
+		$ai: AIEvent(priority==2) 	
+
+	then		
+
+		insertLogical( new AIBad($ai))	
+
+				
+	end
+rule "AIGood"
+	dialect "mvel"
+	salience 18
+	when 
+		$ai: AIEvent(priority==0) 
+	
+	then		
+	
+		insertLogical( new AIGood($ai))	
+	
+		
+	end
+rule "AINeutral"
+	dialect "mvel"
+	salience 19
+	when 
+		$ai: AIEvent(priority==1) 	
+
+	then		
+	
+		insertLogical(new AINeutral($ai))	
+	
+	end			
+rule "Matched Priority 1 Words"
+	dialect "mvel"
+	salience 40
+	activation-group "word match 1"
+	when 
+		$setting: SentimentSettings()
+		$tickets: Ticket() 
+		$word: P1WordSettings($tickets.bagofwords.contains(this.word))
+	then
+		insertLogical( new MatchedP1WordSettings($tickets))		
+
+	end		
+rule "Matched Priority 2 Words"
+	dialect "mvel"
+	salience 40
+	activation-group "word match 2"
+	when 
+		$setting: SentimentSettings()
+		$tickets: Ticket() 
+		$word: P2WordSettings($tickets.bagofwords.contains(this.word))
+		
+	then
+		insertLogical( new MatchedP2WordSettings($tickets))		
+
+	end		
+rule "Matched Priority 3 Words (High)"
+	dialect "mvel"
+	salience 40
+	activation-group "word match 3"
+	when 
+		$setting: SentimentSettings()
+		$tickets: Ticket() 
+		$word: P3WordSettings($tickets.bagofwords.contains(this.word))		
+	
+	then
+		insertLogical( new MatchedP3WordSettings($tickets))		
+
+	end			
